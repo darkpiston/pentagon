@@ -142,3 +142,8 @@ src/Pentagon.Functions/
 ├── host.json                           # Functions host config
 └── local.settings.json.example         # Local dev settings template
 ```
+
+## Possible improvements
+
+- Add Agent Validation 
+- Add Feedback Validation Mechanism that continues to improve on the result
