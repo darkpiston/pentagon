@@ -15,6 +15,7 @@ public sealed class InterpreterService : IInterpreterService
 {
     private const string PassMessage = "Your Profile is now verified. Thank you";
     private const string DefaultGeminiModel = "gemini-2.5-flash";
+    private const float AmbiguousLabelScoreDelta = 0.15f;
 
     private const string FailureHeader = "Your Profile Verification Failed";
 
@@ -22,12 +23,27 @@ public sealed class InterpreterService : IInterpreterService
         You write the explanation shown to a user after motorcycle rider profile photo verification failed.
         Output ONLY the explanation body. Do not include a title or header.
         Write exactly 2 complete sentences.
-        You may describe what the photo shows using up to 2 image content hints joined with "or" (for example, "a plant or flower"). Never list more than 2 items.
+        The user prompt includes a failure reason and pre-computed image content hints. Use the hints exactly as given.
+        If hints contain "or", you may use that phrasing. If hints are a single item, do not add alternatives with "or".
+        If hints are "none", say we couldn't find the user's face or a motorcycle without guessing what the photo shows.
         State why verification failed, then encourage the user to upload a clear photo showing both their face and their motorcycle.
         Every sentence must end with a period. Never end with a comma or leave a sentence unfinished.
         Do not mention scores, confidence, APIs, bounding boxes, or any internal detection methods.
-        Example body: "It looks like you uploaded a photo of a flower or plant. Please upload a clear photo that shows both your face and your motorcycle."
+        Example body: "It looks like your photo shows a flower. Please upload a clear photo that shows both your face and your motorcycle."
         """;
+
+    private static readonly HashSet<string> VehicleFamilyLabels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Motorcycle",
+        "Motorbike",
+        "Vehicle",
+        "Land vehicle",
+        "Wheel",
+        "Tire",
+        "Automotive",
+        "Motor vehicle",
+        "Bicycle",
+    };
 
     private readonly GoogleCredentialProvider _credentialProvider;
     private readonly string _model;
@@ -50,6 +66,12 @@ public sealed class InterpreterService : IInterpreterService
         if (string.Equals(result.Result, "Pass", StringComparison.OrdinalIgnoreCase))
         {
             return PassMessage;
+        }
+
+        var failureReason = GetFailureReason(result);
+        if (failureReason is VerificationFailureReason.MissingFace or VerificationFailureReason.MissingMotorcycle)
+        {
+            return FormatFailureMessage(BuildDeterministicBody(failureReason));
         }
 
         var userPrompt = BuildUserPrompt(result);
@@ -93,32 +115,73 @@ public sealed class InterpreterService : IInterpreterService
             _logger.LogWarning("Gemini returned empty content; using fallback failure message.");
         }
 
-        return BuildFallbackMessage(result);
+        return BuildFallbackMessage(result, failureReason);
     }
+
+    private static VerificationFailureReason GetFailureReason(ProcessImageResult result)
+    {
+        if (!result.FaceDetected && result.MotorcycleDetected)
+        {
+            return VerificationFailureReason.MissingFace;
+        }
+
+        if (result.FaceDetected && !result.MotorcycleDetected)
+        {
+            return VerificationFailureReason.MissingMotorcycle;
+        }
+
+        return VerificationFailureReason.MissingBoth;
+    }
+
+    private static string BuildDeterministicBody(VerificationFailureReason reason) =>
+        reason switch
+        {
+            VerificationFailureReason.MissingFace =>
+                "We couldn't find your face in this photo. Please upload a clear photo that shows both your face and your motorcycle.",
+            VerificationFailureReason.MissingMotorcycle =>
+                "We couldn't find a motorcycle in this photo. Please upload a clear photo that shows both your face and your motorcycle.",
+            _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "Deterministic body requires a single-cause failure reason."),
+        };
 
     private static string BuildUserPrompt(ProcessImageResult result)
     {
-        var labels = result.Vision.Labels
-            .Select(l => l.Description)
-            .Where(d => !string.IsNullOrWhiteSpace(d))
-            .Take(2)
-            .Select(d => d.ToLowerInvariant())
-            .ToList();
-
-        var labelText = labels.Count switch
-        {
-            0 => "none",
-            1 => labels[0],
-            _ => $"{labels[0]} or {labels[1]}",
-        };
+        var contentHint = BuildContentHint(result);
 
         return $"""
             Verification result: Fail
+            Failure reason: wrong_content
             Face detected: {result.FaceDetected.ToString().ToLowerInvariant()}
             Motorcycle detected: {result.MotorcycleDetected.ToString().ToLowerInvariant()}
-            Image content hints: {labelText}
+            Image content hints: {contentHint}
             """;
     }
+
+    private static string BuildContentHint(ProcessImageResult result)
+    {
+        if (result.MotorcycleDetected)
+        {
+            return "none";
+        }
+
+        var candidates = result.Vision.Labels
+            .Where(l => !string.IsNullOrWhiteSpace(l.Description))
+            .Where(l => !IsVehicleFamilyLabel(l.Description))
+            .OrderByDescending(l => l.Score)
+            .Take(2)
+            .ToList();
+
+        return candidates.Count switch
+        {
+            0 => "none",
+            1 => candidates[0].Description.ToLowerInvariant(),
+            _ when Math.Abs(candidates[0].Score - candidates[1].Score) <= AmbiguousLabelScoreDelta =>
+                $"{candidates[0].Description.ToLowerInvariant()} or {candidates[1].Description.ToLowerInvariant()}",
+            _ => candidates[0].Description.ToLowerInvariant(),
+        };
+    }
+
+    private static bool IsVehicleFamilyLabel(string description) =>
+        VehicleFamilyLabels.Contains(description);
 
     private static string? ExtractText(GenerateContentResponse response)
     {
@@ -205,34 +268,32 @@ public sealed class InterpreterService : IInterpreterService
         return text;
     }
 
-    private static string BuildFallbackMessage(ProcessImageResult result)
+    private static string BuildFallbackMessage(ProcessImageResult result, VerificationFailureReason failureReason)
     {
-        var labels = result.Vision.Labels
-            .Select(l => l.Description)
-            .Where(d => !string.IsNullOrWhiteSpace(d))
-            .Take(2)
-            .Select(d => d.ToLowerInvariant())
-            .ToList();
-
-        string body;
-        if (!result.FaceDetected && !result.MotorcycleDetected)
+        string body = failureReason switch
         {
-            body = labels.Count switch
-            {
-                0 => "We couldn't find your face or a motorcycle in this photo. Please upload a clear photo that shows both your face and your motorcycle.",
-                1 => $"It looks like your photo shows a {labels[0]}. Please upload a clear photo that shows both your face and your motorcycle.",
-                _ => $"It looks like your photo shows a {labels[0]} or {labels[1]}. Please upload a clear photo that shows both your face and your motorcycle.",
-            };
-        }
-        else if (!result.FaceDetected)
-        {
-            body = "We couldn't find your face in this photo. Please upload a clear photo that shows both your face and your motorcycle.";
-        }
-        else
-        {
-            body = "We couldn't find a motorcycle in this photo. Please upload a clear photo that shows both your face and your motorcycle.";
-        }
+            VerificationFailureReason.MissingFace or VerificationFailureReason.MissingMotorcycle =>
+                BuildDeterministicBody(failureReason),
+            VerificationFailureReason.MissingBoth => BuildMissingBothFallbackBody(result),
+            _ => BuildMissingBothFallbackBody(result),
+        };
 
         return FormatFailureMessage(body);
+    }
+
+    private static string BuildMissingBothFallbackBody(ProcessImageResult result)
+    {
+        var contentHint = BuildContentHint(result);
+
+        return contentHint == "none"
+            ? "We couldn't find your face or a motorcycle in this photo. Please upload a clear photo that shows both your face and your motorcycle."
+            : $"It looks like your photo shows a {contentHint}. Please upload a clear photo that shows both your face and your motorcycle.";
+    }
+
+    private enum VerificationFailureReason
+    {
+        MissingFace,
+        MissingMotorcycle,
+        MissingBoth,
     }
 }
