@@ -14,6 +14,7 @@ public sealed class ImageAnalyzerService : IImageAnalyzerService
 {
     private const string MotorcycleLabel = "Motorcycle";
     private const double DefaultConfidenceThreshold = 0.8;
+    private const int MaxContentLabels = 4;
 
     private static readonly HashSet<string> RelevantVehicleLabels = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -162,11 +163,13 @@ public sealed class ImageAnalyzerService : IImageAnalyzerService
             .Where(l => !string.Equals(l.Description, MotorcycleLabel, StringComparison.OrdinalIgnoreCase))
             .Where(l => l.Score >= _confidenceThreshold)
             .OrderByDescending(l => l.Score)
-            .Select(l => new LabelSummary
-            {
-                Description = l.Description,
-                Score = l.Score,
-            })
+            .Select(MapLabelSummary)
+            .ToList();
+
+        var labels = labelAnnotations
+            .OrderByDescending(l => l.Score)
+            .Take(MaxContentLabels)
+            .Select(MapLabelSummary)
             .ToList();
 
         return new TrimmedVisionResponse
@@ -174,9 +177,17 @@ public sealed class ImageAnalyzerService : IImageAnalyzerService
             FaceCount = faces.Count,
             Faces = faces,
             Motorcycle = motorcycle,
+            Labels = labels,
             OtherRelevantLabels = otherRelevantLabels,
         };
     }
+
+    private static LabelSummary MapLabelSummary(EntityAnnotation annotation) =>
+        new()
+        {
+            Description = annotation.Description,
+            Score = annotation.Score,
+        };
 
     private static MotorcycleDetection MapMotorcycleFromObject(LocalizedObjectAnnotation annotation) =>
         new()

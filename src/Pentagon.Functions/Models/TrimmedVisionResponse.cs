@@ -8,6 +8,8 @@ public sealed class TrimmedVisionResponse
 
     public MotorcycleDetection? Motorcycle { get; init; }
 
+    public IReadOnlyList<LabelSummary> Labels { get; init; } = [];
+
     public IReadOnlyList<LabelSummary> OtherRelevantLabels { get; init; } = [];
 }
 

@@ -86,6 +86,11 @@ Response body (JSON):
       "score": 0.91,
       "boundingPoly": { "vertices": [{ "x": 10, "y": 20 }] }
     },
+    "labels": [
+      { "description": "Motorcycle", "score": 0.91 },
+      { "description": "Vehicle", "score": 0.87 },
+      { "description": "Person", "score": 0.85 }
+    ],
     "otherRelevantLabels": []
   }
 }
@@ -97,7 +102,7 @@ Response body (JSON):
 | `faceDetected` | Whether at least one face was detected |
 | `motorcycleDetected` | Whether a motorcycle was detected above the confidence threshold |
 | `motorcycleConfidence` | Best motorcycle detection score, if detected |
-| `vision` | Trimmed Google Vision payload (faces, motorcycle, related labels) |
+| `vision` | Trimmed Google Vision payload (faces, motorcycle, content labels, related vehicle labels) |
 
 ## Project structure
 
