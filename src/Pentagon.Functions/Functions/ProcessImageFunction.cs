@@ -9,7 +9,7 @@ public class ProcessImageFunction
 {
     [Function("ProcessImage")]
     public IActionResult Run(
-        [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req,
         [FromBody] ProcessImageRequest request)
     {
         throw new NotImplementedException("ProcessImage is not implemented.");
