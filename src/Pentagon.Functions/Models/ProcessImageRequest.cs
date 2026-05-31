@@ -8,9 +8,7 @@ public class ProcessImageRequest
     [Url]
     public required string ImageUrl { get; init; }
 
+    [Required]
     [EmailAddress]
-    public string? Email { get; init; }
-
-    [Phone]
-    public string? Phone { get; init; }
+    public required string Email { get; init; }
 }

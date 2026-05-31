@@ -60,16 +60,14 @@ Request body (JSON):
 ```json
 {
   "imageUrl": "https://example.com/image.jpg",
-  "email": "user@example.com",
-  "phone": "+15551234567"
+  "email": "user@example.com"
 }
 ```
 
 | Field      | Required | Description              |
 |------------|----------|--------------------------|
 | `imageUrl` | Yes      | Public URL of the image to analyze |
-| `email`    | No       | Contact email address    |
-| `phone`    | No       | Contact phone number     |
+| `email`    | Yes      | Contact email address    |
 
 The image URL must be publicly reachable by Google Cloud Vision.
 
