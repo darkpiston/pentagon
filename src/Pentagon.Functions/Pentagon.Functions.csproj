@@ -15,6 +15,9 @@
     <PackageReference Include="Microsoft.Azure.Functions.Worker.ApplicationInsights" Version="2.0.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.0.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.5" />
+    <PackageReference Include="Google.Cloud.Vision.V1" Version="3.7.0" />
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.7.0" />
+    <PackageReference Include="Azure.Identity" Version="1.13.2" />
   </ItemGroup>
 
   <ItemGroup>
