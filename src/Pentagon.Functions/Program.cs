@@ -11,7 +11,8 @@ builder.ConfigureFunctionsWebApplication();
 builder.Services
     .AddApplicationInsightsTelemetryWorkerService()
     .ConfigureFunctionsApplicationInsights()
-    .AddSingleton<GoogleVisionCredentialProvider>()
-    .AddSingleton<IImageAnalyzerService, ImageAnalyzerService>();
+    .AddSingleton<GoogleCredentialProvider>()
+    .AddSingleton<IImageAnalyzerService, ImageAnalyzerService>()
+    .AddSingleton<IInterpreterService, InterpreterService>();
 
 builder.Build().Run();

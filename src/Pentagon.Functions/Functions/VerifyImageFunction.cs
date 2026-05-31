@@ -8,20 +8,23 @@ using Pentagon.Functions.Services;
 
 namespace Pentagon.Functions.Functions;
 
-public class ProcessImageFunction
+public class VerifyImageFunction
 {
     private readonly IImageAnalyzerService _imageAnalyzer;
-    private readonly ILogger<ProcessImageFunction> _logger;
+    private readonly IInterpreterService _interpreter;
+    private readonly ILogger<VerifyImageFunction> _logger;
 
-    public ProcessImageFunction(
+    public VerifyImageFunction(
         IImageAnalyzerService imageAnalyzer,
-        ILogger<ProcessImageFunction> logger)
+        IInterpreterService interpreter,
+        ILogger<VerifyImageFunction> logger)
     {
         _imageAnalyzer = imageAnalyzer;
+        _interpreter = interpreter;
         _logger = logger;
     }
 
-    [Function("ProcessImage")]
+    [Function("VerifyImage")]
     public async Task<IActionResult> Run(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequest req)
     {
@@ -34,11 +37,12 @@ public class ProcessImageFunction
         try
         {
             var result = await _imageAnalyzer.AnalyzeAsync(request!, req.HttpContext.RequestAborted);
-            return new OkObjectResult(result);
+            var message = await _interpreter.InterpretAsync(result, req.HttpContext.RequestAborted);
+            return new OkObjectResult(new { message });
         }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(ex, "Failed to retrieve Google Vision credentials from Key Vault.");
+            _logger.LogError(ex, "Failed to retrieve Google credentials from Key Vault.");
             return new ObjectResult(new { error = "Unable to retrieve credentials. Please try again later." })
             {
                 StatusCode = StatusCodes.Status503ServiceUnavailable,
@@ -46,7 +50,7 @@ public class ProcessImageFunction
         }
         catch (GoogleApiException ex)
         {
-            _logger.LogError(ex, "Google Vision API request failed.");
+            _logger.LogError(ex, "Google API request failed.");
             return new ObjectResult(new { error = "Image analysis failed. Please try again later." })
             {
                 StatusCode = StatusCodes.Status502BadGateway,
@@ -56,6 +60,14 @@ public class ProcessImageFunction
         {
             _logger.LogError(ex, "Google Vision API returned an error for the image.");
             return new ObjectResult(new { error = "Image analysis failed. Please verify the image URL is publicly accessible." })
+            {
+                StatusCode = StatusCodes.Status502BadGateway,
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
+        {
+            _logger.LogError(ex, "Failed to generate verification message with Gemini.");
+            return new ObjectResult(new { error = "Unable to generate verification message. Please try again later." })
             {
                 StatusCode = StatusCodes.Status502BadGateway,
             };

@@ -22,12 +22,12 @@ public sealed class ImageAnalyzerService : IImageAnalyzerService
         "Motorbike",
     };
 
-    private readonly GoogleVisionCredentialProvider _credentialProvider;
+    private readonly GoogleCredentialProvider _credentialProvider;
     private readonly double _confidenceThreshold;
     private readonly ILogger<ImageAnalyzerService> _logger;
 
     public ImageAnalyzerService(
-        GoogleVisionCredentialProvider credentialProvider,
+        GoogleCredentialProvider credentialProvider,
         IConfiguration configuration,
         ILogger<ImageAnalyzerService> logger)
     {
@@ -44,7 +44,7 @@ public sealed class ImageAnalyzerService : IImageAnalyzerService
         ProcessImageRequest request,
         CancellationToken cancellationToken = default)
     {
-        var client = await _credentialProvider.GetClientAsync();
+        var client = await _credentialProvider.GetVisionClientAsync();
 
         var image = new Image { Source = new ImageSource { ImageUri = request.ImageUrl } };
         var annotateRequest = new AnnotateImageRequest
