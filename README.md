@@ -4,9 +4,11 @@ Azure Functions app scaffold for processing image submissions.
 
 ## Prerequisites
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Azure Functions Core Tools v4](https://learn.microsoft.com/en-us/azure/azure-functions/functions-run-local)
 - [Azurite](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azurite) (optional, for local storage emulation)
+
+> **Deployment note:** .NET 10 is not supported on the **Linux Consumption** plan. Use **Flex Consumption**, **Premium**, or **Dedicated** when deploying to Linux.
 
 ## Getting started
 
