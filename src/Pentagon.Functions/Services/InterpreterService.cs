@@ -69,7 +69,9 @@ public sealed class InterpreterService : IInterpreterService
         }
 
         var failureReason = GetFailureReason(result);
-        if (failureReason is VerificationFailureReason.MissingFace or VerificationFailureReason.MissingMotorcycle)
+        if (failureReason is VerificationFailureReason.MissingFace
+            or VerificationFailureReason.MissingMotorcycle
+            or VerificationFailureReason.ObstructedFace)
         {
             return FormatFailureMessage(BuildDeterministicBody(failureReason));
         }
@@ -122,7 +124,9 @@ public sealed class InterpreterService : IInterpreterService
     {
         if (!result.FaceDetected && result.MotorcycleDetected)
         {
-            return VerificationFailureReason.MissingFace;
+            return result.Vision.FaceCount > 0
+                ? VerificationFailureReason.ObstructedFace
+                : VerificationFailureReason.MissingFace;
         }
 
         if (result.FaceDetected && !result.MotorcycleDetected)
@@ -138,6 +142,8 @@ public sealed class InterpreterService : IInterpreterService
         {
             VerificationFailureReason.MissingFace =>
                 "We couldn't find your face in this photo. Please upload a clear photo that shows both your face and your motorcycle.",
+            VerificationFailureReason.ObstructedFace =>
+                "Your face isn't clearly visible in this photo. Please upload a clear photo that shows your unobstructed face and your motorcycle.",
             VerificationFailureReason.MissingMotorcycle =>
                 "We couldn't find a motorcycle in this photo. Please upload a clear photo that shows both your face and your motorcycle.",
             _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, "Deterministic body requires a single-cause failure reason."),
@@ -272,7 +278,9 @@ public sealed class InterpreterService : IInterpreterService
     {
         string body = failureReason switch
         {
-            VerificationFailureReason.MissingFace or VerificationFailureReason.MissingMotorcycle =>
+            VerificationFailureReason.MissingFace
+                or VerificationFailureReason.MissingMotorcycle
+                or VerificationFailureReason.ObstructedFace =>
                 BuildDeterministicBody(failureReason),
             VerificationFailureReason.MissingBoth => BuildMissingBothFallbackBody(result),
             _ => BuildMissingBothFallbackBody(result),
@@ -293,6 +301,7 @@ public sealed class InterpreterService : IInterpreterService
     private enum VerificationFailureReason
     {
         MissingFace,
+        ObstructedFace,
         MissingMotorcycle,
         MissingBoth,
     }

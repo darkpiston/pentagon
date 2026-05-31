@@ -1,5 +1,7 @@
 using Azure;
 using Google;
+using MailKit.Net.Smtp;
+using MailKit.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
@@ -12,15 +14,18 @@ public class VerifyImageFunction
 {
     private readonly IImageAnalyzerService _imageAnalyzer;
     private readonly IInterpreterService _interpreter;
+    private readonly IMessageService _messageService;
     private readonly ILogger<VerifyImageFunction> _logger;
 
     public VerifyImageFunction(
         IImageAnalyzerService imageAnalyzer,
         IInterpreterService interpreter,
+        IMessageService messageService,
         ILogger<VerifyImageFunction> logger)
     {
         _imageAnalyzer = imageAnalyzer;
         _interpreter = interpreter;
+        _messageService = messageService;
         _logger = logger;
     }
 
@@ -36,9 +41,11 @@ public class VerifyImageFunction
 
         try
         {
-            var result = await _imageAnalyzer.AnalyzeAsync(request!, req.HttpContext.RequestAborted);
-            var message = await _interpreter.InterpretAsync(result, req.HttpContext.RequestAborted);
-            return new OkObjectResult(new { message });
+            var cancellationToken = req.HttpContext.RequestAborted;
+            var result = await _imageAnalyzer.AnalyzeAsync(request!, cancellationToken);
+            var message = await _interpreter.InterpretAsync(result, cancellationToken);
+            await _messageService.SendAsync(request!, result, message, cancellationToken);
+            return new OkObjectResult(new { message, emailSent = true });
         }
         catch (RequestFailedException ex)
         {
@@ -68,6 +75,14 @@ public class VerifyImageFunction
         {
             _logger.LogError(ex, "Failed to generate verification message with Gemini.");
             return new ObjectResult(new { error = "Unable to generate verification message. Please try again later." })
+            {
+                StatusCode = StatusCodes.Status502BadGateway,
+            };
+        }
+        catch (Exception ex) when (ex is SmtpCommandException or SmtpProtocolException or AuthenticationException or IOException)
+        {
+            _logger.LogError(ex, "Failed to send verification email.");
+            return new ObjectResult(new { error = "Unable to send verification email. Please try again later." })
             {
                 StatusCode = StatusCodes.Status502BadGateway,
             };

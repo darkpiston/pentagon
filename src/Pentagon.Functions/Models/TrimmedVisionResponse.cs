@@ -17,6 +17,8 @@ public sealed class FaceSummary
 {
     public float? DetectionConfidence { get; init; }
 
+    public bool Visible { get; init; }
+
     public BoundingPoly? BoundingPoly { get; init; }
 }
 

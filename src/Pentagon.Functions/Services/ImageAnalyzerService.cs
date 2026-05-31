@@ -15,6 +15,17 @@ public sealed class ImageAnalyzerService : IImageAnalyzerService
     private const string MotorcycleLabel = "Motorcycle";
     private const double DefaultConfidenceThreshold = 0.8;
     private const int MaxContentLabels = 4;
+    private const float MinLandmarkingConfidence = 0.5f;
+    private const float MinFaceDetectionConfidence = 0.7f;
+    private const float MaxFacePanAngle = 45f;
+
+    private static readonly FaceAnnotation.Types.Landmark.Types.Type[] RequiredFaceLandmarks =
+    [
+        FaceAnnotation.Types.Landmark.Types.Type.LeftEye,
+        FaceAnnotation.Types.Landmark.Types.Type.RightEye,
+        FaceAnnotation.Types.Landmark.Types.Type.NoseTip,
+        FaceAnnotation.Types.Landmark.Types.Type.MouthCenter,
+    ];
 
     private static readonly HashSet<string> RelevantVehicleLabels = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -105,8 +116,14 @@ public sealed class ImageAnalyzerService : IImageAnalyzerService
             motorcycleConfidence = motorcycleLabel!.Score;
         }
 
-        var faceDetected = faceAnnotations.Count > 0;
+        var faceDetected = faceAnnotations.Any(IsFaceDetected);
         var pass = faceDetected && motorcycleDetected;
+
+        if (faceAnnotations.Count > 0 && !faceDetected)
+        {
+            _logger.LogInformation(
+                "Face detected but not clearly visible (obstructed, blurred, or turned away).");
+        }
 
         var vision = BuildTrimmedVisionResponse(
             faceAnnotations,
@@ -126,6 +143,37 @@ public sealed class ImageAnalyzerService : IImageAnalyzerService
         };
     }
 
+    private static bool IsFaceDetected(FaceAnnotation face)
+    {
+        if (face.DetectionConfidence < MinFaceDetectionConfidence)
+        {
+            return false;
+        }
+
+        if (IsLikelyOrWorse(face.HeadwearLikelihood)
+            || IsLikelyOrWorse(face.BlurredLikelihood)
+            || IsLikelyOrWorse(face.UnderExposedLikelihood))
+        {
+            return false;
+        }
+
+        if (face.LandmarkingConfidence < MinLandmarkingConfidence)
+        {
+            return false;
+        }
+
+        if (Math.Abs(face.PanAngle) > MaxFacePanAngle)
+        {
+            return false;
+        }
+
+        var landmarkTypes = face.Landmarks.Select(l => l.Type).ToHashSet();
+        return RequiredFaceLandmarks.All(landmarkTypes.Contains);
+    }
+
+    private static bool IsLikelyOrWorse(Likelihood likelihood) =>
+        likelihood is Likelihood.Likely or Likelihood.VeryLikely;
+
     private TrimmedVisionResponse BuildTrimmedVisionResponse(
         IReadOnlyList<FaceAnnotation> faceAnnotations,
         IReadOnlyList<EntityAnnotation> labelAnnotations,
@@ -138,6 +186,7 @@ public sealed class ImageAnalyzerService : IImageAnalyzerService
             .Select(f => new FaceSummary
             {
                 DetectionConfidence = f.DetectionConfidence,
+                Visible = IsFaceDetected(f),
                 BoundingPoly = MapBoundingPoly(f.BoundingPoly),
             })
             .ToList();

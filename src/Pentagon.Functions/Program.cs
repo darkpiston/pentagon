@@ -13,6 +13,7 @@ builder.Services
     .ConfigureFunctionsApplicationInsights()
     .AddSingleton<GoogleCredentialProvider>()
     .AddSingleton<IImageAnalyzerService, ImageAnalyzerService>()
-    .AddSingleton<IInterpreterService, InterpreterService>();
+    .AddSingleton<IInterpreterService, InterpreterService>()
+    .AddSingleton<IMessageService, MessageService>();
 
 builder.Build().Run();

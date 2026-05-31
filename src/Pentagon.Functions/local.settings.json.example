@@ -7,6 +7,9 @@
     "GoogleVisionSecretName": "GoogleVisionCredentials",
     "GoogleVisionConfidenceThreshold": "0.8",
     "GoogleCloudLocation": "us-central1",
-    "GoogleGeminiModel": "gemini-2.5-flash"
+    "GoogleGeminiModel": "gemini-2.5-flash",
+    "GoogleMailSecretName": "GoogleMail",
+    "MailFromAddress": "hello@tribes.zone",
+    "MailFromDisplayName": "Tribes"
   }
 }
